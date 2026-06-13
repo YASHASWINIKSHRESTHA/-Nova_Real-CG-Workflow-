@@ -1,0 +1,90 @@
+
+doc_id,doc_path,field_name,true_value,true_confidence_bucket
+doc1,samples/clean_bol.pdf,consignee_name,ACME LOGISTICS PTE LTD,high
+doc1,samples/clean_bol.pdf,hs_code,8471.30,high
+doc1,samples/clean_bol.pdf,port_of_loading,SHANGHAI,high
+doc1,samples/clean_bol.pdf,port_of_discharge,SINGAPORE,high
+doc1,samples/clean_bol.pdf,incoterms,FOB,high
+doc1,samples/clean_bol.pdf,description_of_goods,Printed Circuit Boards and Electronic Components,high
+doc1,samples/clean_bol.pdf,gross_weight,980.00 KG,high
+doc1,samples/clean_bol.pdf,invoice_number,INV-20240115,high
+doc2,samples/messy_invoice.jpg,consignee_name,ACME LOGISTICS PTE LTD,medium
+doc2,samples/messy_invoice.jpg,hs_code,9999.99,high
+doc2,samples/messy_invoice.jpg,port_of_loading,GUANGZHOU,medium
+doc2,samples/messy_invoice.jpg,port_of_discharge,SINGAPORE,high
+doc2,samples/messy_invoice.jpg,incoterms,CIF,high
+doc2,samples/messy_invoice.jpg,description_of_goods,Electronic Parts and Semiconductor Devices,medium
+doc2,samples/messy_invoice.jpg,gross_weight,1050.00 KG,medium
+doc2,samples/messy_invoice.jpg,invoice_number,INV-20240116,high
+doc3,samples/clean_bol.pdf,consignee_name,ACME LOGISTICS PTE LTD,high
+doc3,samples/clean_bol.pdf,hs_code,8471.30,high
+doc3,samples/clean_bol.pdf,port_of_loading,SHANGHAI,high
+doc3,samples/clean_bol.pdf,port_of_discharge,SINGAPORE,high
+doc3,samples/clean_bol.pdf,incoterms,FOB,high
+doc3,samples/clean_bol.pdf,description_of_goods,Printed Circuit Boards and Electronic Components,high
+doc3,samples/clean_bol.pdf,gross_weight,980.00 KG,high
+doc3,samples/clean_bol.pdf,invoice_number,INV-20240115,high
+doc4,samples/messy_invoice.jpg,consignee_name,ACME LOGISTICS PTE LTD,medium
+doc4,samples/messy_invoice.jpg,hs_code,9999.99,high
+doc4,samples/messy_invoice.jpg,port_of_loading,GUANGZHOU,medium
+doc4,samples/messy_invoice.jpg,port_of_discharge,SINGAPORE,high
+doc4,samples/messy_invoice.jpg,incoterms,CIF,high
+doc4,samples/messy_invoice.jpg,description_of_goods,Electronic Parts and Semiconductor Devices,medium
+doc4,samples/messy_invoice.jpg,gross_weight,1050.00 KG,medium
+doc4,samples/messy_invoice.jpg,invoice_number,INV-20240116,high
+doc5,samples/clean_bol.pdf,consignee_name,ACME LOGISTICS PTE LTD,high
+doc5,samples/clean_bol.pdf,hs_code,8471.30,high
+doc5,samples/clean_bol.pdf,port_of_loading,SHANGHAI,high
+doc5,samples/clean_bol.pdf,port_of_discharge,SINGAPORE,high
+doc5,samples/clean_bol.pdf,incoterms,FOB,high
+doc5,samples/clean_bol.pdf,description_of_goods,Printed Circuit Boards and Electronic Components,high
+doc5,samples/clean_bol.pdf,gross_weight,980.00 KG,high
+doc5,samples/clean_bol.pdf,invoice_number,INV-20240115,high
+doc6,samples/packing_list_001.pdf,consignee_name,MERIDIAN FREIGHT SOLUTIONS SDN BHD,high
+doc6,samples/packing_list_001.pdf,hs_code,8542.31,high
+doc6,samples/packing_list_001.pdf,port_of_loading,NINGBO,high
+doc6,samples/packing_list_001.pdf,port_of_discharge,PORT KLANG,high
+doc6,samples/packing_list_001.pdf,incoterms,EXW,high
+doc6,samples/packing_list_001.pdf,description_of_goods,Semiconductor Integrated Circuits,high
+doc6,samples/packing_list_001.pdf,gross_weight,320.50 KG,medium
+doc6,samples/packing_list_001.pdf,invoice_number,INV-20240201,high
+doc7,samples/commercial_invoice_002.pdf,consignee_name,DELTA IMPORT CORPORATION,high
+doc7,samples/commercial_invoice_002.pdf,hs_code,9013.80,high
+doc7,samples/commercial_invoice_002.pdf,port_of_loading,HAMBURG,high
+doc7,samples/commercial_invoice_002.pdf,port_of_discharge,NHAVA SHEVA,medium
+doc7,samples/commercial_invoice_002.pdf,incoterms,EXW,high
+doc7,samples/commercial_invoice_002.pdf,description_of_goods,Optical Instruments and Laser Components,high
+doc7,samples/commercial_invoice_002.pdf,gross_weight,215.00 KG,high
+doc7,samples/commercial_invoice_002.pdf,invoice_number,INV-20240302,high
+doc8,samples/commercial_invoice_002.pdf,consignee_name,DELTA IMPORT CORPORATION,high
+doc8,samples/commercial_invoice_002.pdf,hs_code,9013.80,high
+doc8,samples/commercial_invoice_002.pdf,port_of_loading,HAMBURG,high
+doc8,samples/commercial_invoice_002.pdf,port_of_discharge,NHAVA SHEVA (JNPT),medium
+doc8,samples/commercial_invoice_002.pdf,incoterms,EXW HAMBURG,high
+doc8,samples/commercial_invoice_002.pdf,description_of_goods,Optical Instruments and Laser Components,high
+doc8,samples/commercial_invoice_002.pdf,gross_weight,215.00 KG,high
+doc8,samples/commercial_invoice_002.pdf,invoice_number,INV-20240302,high
+doc9,samples/bol_002.pdf,consignee_name,ACME LOGISTICS PTE LTD,high
+doc9,samples/bol_002.pdf,hs_code,8473.30,high
+doc9,samples/bol_002.pdf,port_of_loading,NINGBO,high
+doc9,samples/bol_002.pdf,port_of_discharge,PORT KLANG,high
+doc9,samples/bol_002.pdf,incoterms,EXW,high
+doc9,samples/bol_002.pdf,description_of_goods,Printed Circuit Boards — Computer Peripherals,high
+doc9,samples/bol_002.pdf,gross_weight,975.00 KG,high
+doc9,samples/bol_002.pdf,invoice_number,INV-20240220,high
+doc10,samples/invoice_003.pdf,consignee_name,ACME LOGISTICS PTE LTD,high
+doc10,samples/invoice_003.pdf,hs_code,7326.90,high
+doc10,samples/invoice_003.pdf,port_of_loading,SHANGHAI,high
+doc10,samples/invoice_003.pdf,port_of_discharge,SINGAPORE,high
+doc10,samples/invoice_003.pdf,incoterms,FOB,high
+doc10,samples/invoice_003.pdf,description_of_goods,Electronic Components and PCB Assemblies,high
+doc10,samples/invoice_003.pdf,gross_weight,1020.00 KG,high
+doc10,samples/invoice_003.pdf,invoice_number,INV-20240318,high
+doc11,samples/packing_list_002.pdf,consignee_name,ACME LOGISTICS PTE LTD,high
+doc11,samples/packing_list_002.pdf,hs_code,8542.39,high
+doc11,samples/packing_list_002.pdf,port_of_loading,GUANGZHOU,high
+doc11,samples/packing_list_002.pdf,port_of_discharge,SINGAPORE,high
+doc11,samples/packing_list_002.pdf,incoterms,CIF,high
+doc11,samples/packing_list_002.pdf,description_of_goods,Semiconductor Integrated Circuits — Mixed Grade,high
+doc11,samples/packing_list_002.pdf,gross_weight,1050.00 KG,high
+doc11,samples/packing_list_002.pdf,invoice_number,INV-20240410,high

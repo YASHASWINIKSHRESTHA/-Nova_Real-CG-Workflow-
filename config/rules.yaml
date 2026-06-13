@@ -1,0 +1,48 @@
+customer: "Acme Logistics"
+rules:
+  consignee_name:
+    expected: "ACME LOGISTICS PTE LTD"
+    match_type: exact_ci
+
+  hs_code:
+    allowed_prefixes:
+      - "8471"
+      - "8473"
+      - "8542"
+    match_type: prefix
+
+  port_of_loading:
+    allowed:
+      - "SHANGHAI"
+      - "NINGBO"
+      - "GUANGZHOU"
+    match_type: enum
+
+  port_of_discharge:
+    allowed:
+      - "SINGAPORE"
+      - "PORT KLANG"
+    match_type: enum
+
+  incoterms:
+    allowed:
+      - "FOB"
+      - "CIF"
+      - "EXW"
+    match_type: enum
+
+  gross_weight:
+    tolerance_pct: 5.0
+    expected_kg: 1000.0
+    match_type: numeric_tolerance
+
+  description_of_goods:
+    expected_keywords:
+      - "electronics"
+      - "semiconductor"
+      - "PCB"
+    match_type: semantic
+
+  invoice_number:
+    pattern: "INV-\\d{4,}"
+    match_type: regex
