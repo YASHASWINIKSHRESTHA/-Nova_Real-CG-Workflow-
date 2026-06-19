@@ -11,15 +11,35 @@ from nova.infrastructure.llm import call_text
 
 _SCHEMA_DESCRIPTION = """
 SQLite database schema:
-- shipments(id, trace_id TEXT, doc_paths TEXT, status TEXT, created_at TEXT)
-  status values: 'auto_approve', 'flag_for_review', 'draft_amendment', 'pending'
-- fields(id, trace_id TEXT, field_name TEXT, value TEXT, confidence REAL, source_snippet TEXT, source_page INTEGER)
-  field_name values: consignee_name, hs_code, port_of_loading, port_of_discharge, incoterms, description_of_goods, gross_weight, invoice_number
+
+- shipments(id, trace_id TEXT, doc_paths TEXT, status TEXT, customer TEXT, created_at TEXT)
+  status values: 'auto_approve', 'flag_for_review', 'draft_amendment', 'pending', 'pending_cg_review'
+  customer: name of the supplier / consignee (e.g. 'Acme Logistics')
+  doc_paths: JSON array of file paths for all attachments in the shipment
+
+- fields(id, trace_id TEXT, field_name TEXT, value TEXT, confidence REAL,
+         source_snippet TEXT, source_page INTEGER, doc_type TEXT)
+  field_name values: consignee_name, hs_code, port_of_loading, port_of_discharge,
+                     incoterms, description_of_goods, gross_weight, invoice_number
+  doc_type: BOL, INVOICE, PACKING_LIST, OTHER
+  confidence: 0.0–1.0; >= 0.85 is high confidence
+
 - decisions(id, trace_id TEXT, action TEXT, reasoning TEXT, amendment_email TEXT, created_at TEXT)
   action values: 'auto_approve', 'flag_for_review', 'draft_amendment'
-- audit_log(id, trace_id TEXT, event_type TEXT, payload_json TEXT, created_at TEXT)
+  amendment_email: pre-drafted email text (may contain approval email for auto_approve shipments)
 
-All dates are ISO 8601 strings (e.g., '2024-01-15T10:30:00').
+- audit_log(id, trace_id TEXT, event_type TEXT, payload_json TEXT, created_at TEXT)
+  event_type values: email_received, extracted_all, validated_all, cross_validated,
+                     routed_shipment, persisted_shipment, pending_cg_review,
+                     reply_sent, pipeline_complete, cg_pipeline_complete
+
+- cross_doc_checks(id, trace_id TEXT, field TEXT, status TEXT, values_json TEXT, reason TEXT, created_at TEXT)
+  status values: 'consistent', 'inconsistent', 'insufficient_data'
+  field values: consignee_name, hs_code, invoice_number
+  values_json: JSON object mapping doc_type → extracted value
+
+All dates are ISO 8601 strings (e.g., '2026-06-13T09:00:00').
+Join shipments → decisions on trace_id; join shipments → cross_doc_checks on trace_id.
 """
 
 _SQL_TOOL = [
@@ -80,7 +100,6 @@ def ask(question: str) -> dict:
         f"{_SCHEMA_DESCRIPTION}"
     )
 
-    # Step 1: generate SQL via function-calling
     raw, cost1 = call_text(
         f"Question: {question}",
         system=system,
@@ -110,7 +129,6 @@ def ask(question: str) -> dict:
             "cost_usd": cost1,
         }
 
-    # Step 2: execute
     try:
         rows = _execute_query(sql)
     except sqlite3.Error as e:
@@ -122,7 +140,6 @@ def ask(question: str) -> dict:
             "cost_usd": cost1,
         }
 
-    # Step 3: generate natural language answer
     rows_text = json.dumps(rows[:20], indent=2) if rows else "[]"
     answer_prompt = (
         f"Question: {question}\n\n"

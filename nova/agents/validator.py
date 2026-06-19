@@ -71,7 +71,7 @@ def _check_regex(found: str, rule: dict) -> tuple[str, str]:
     return ("match" if ok else "mismatch"), f"matches {pattern}"
 
 
-def _check_semantic(found: str, rule: dict) -> tuple[str, str, float]:
+def _check_semantic(found: str, rule: dict) -> tuple[str, str, float, float]:
     """Use GPT-4o-mini to check if description contains expected concepts."""
     keywords = rule["expected_keywords"]
     prompt = (
@@ -80,16 +80,16 @@ def _check_semantic(found: str, rule: dict) -> tuple[str, str, float]:
         "Reply with exactly one JSON object: "
         '{"match": true/false, "confidence": 0.0-1.0, "reason": "one sentence"}'
     )
-    raw, _ = call_text(prompt)
+    raw, cost = call_text(prompt)
     try:
         import json
         from nova.infrastructure.llm import parse_json_response
         data = parse_json_response(raw)
         status = "match" if data.get("match") else "mismatch"
         confidence = float(data.get("confidence", 0.5))
-        return status, f"expected concepts: {keywords}", confidence
+        return status, f"expected concepts: {keywords}", confidence, cost
     except Exception:
-        return "uncertain", f"expected concepts: {keywords}", 0.5
+        return "uncertain", f"expected concepts: {keywords}", 0.5, cost
 
 
 def validate(extracted: ExtractedDoc, rules_path: Optional[Path] = None) -> tuple[ValidationResult, float]:
@@ -139,7 +139,8 @@ def validate(extracted: ExtractedDoc, rules_path: Optional[Path] = None) -> tupl
         elif match_type == "regex":
             raw_status, expected_str = _check_regex(fv.value, rule)
         elif match_type == "semantic":
-            raw_status, expected_str, semantic_confidence = _check_semantic(fv.value, rule)
+            raw_status, expected_str, semantic_confidence, sem_cost = _check_semantic(fv.value, rule)
+            total_cost += sem_cost
         else:
             raw_status, expected_str = "uncertain", "unknown rule type"
 

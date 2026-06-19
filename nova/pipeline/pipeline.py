@@ -1,7 +1,7 @@
 """
-LangGraph pipeline: scope → context → schema_route → extractor → validator → router → persist.
+LangGraph pipeline: setup → extractor → validator → router → persist.
 PipelineState is checkpointed to SQLite after every node.
-resume(trace_id) reloads the last checkpoint and continues.
+resume(trace_id) reloads the last checkpoint and continues from the next uncompleted node.
 """
 import json
 import uuid
@@ -23,9 +23,17 @@ _RULES_PATH = Path(__file__).parent.parent.parent / "config" / "rules.yaml"
 # Node implementations
 # ──────────────────────────────────────────────
 
-def node_scope(state: dict) -> dict:
+def node_setup(state: dict) -> dict:
+    """
+    Pre-flight: hint at doc type from filename, load customer rules.
+    A single node because these are non-LLM setup steps with no meaningful
+    checkpoint boundary between them.
+    """
+    import yaml
     ps = PipelineState(**state)
     paths = ps.raw_doc_paths
+
+    # Filename-based type hint — overridden by GPT-4o vision during extraction
     guessed_type = "BOL"
     for p in paths:
         lower = Path(p).name.lower()
@@ -33,29 +41,20 @@ def node_scope(state: dict) -> dict:
             guessed_type = "INVOICE"
         elif "packing" in lower:
             guessed_type = "PACKING_LIST"
-    db.log_event(ps.trace_id, "scope", {"doc_type_guess": guessed_type, "paths": paths})
-    updated = ps.model_copy(update={"step": "context"})
-    _checkpoint(updated)
-    return updated.model_dump()
 
-
-def node_context(state: dict) -> dict:
-    ps = PipelineState(**state)
-    import yaml
     with open(_RULES_PATH) as f:
         rules_data = yaml.safe_load(f)
-    db.log_event(ps.trace_id, "context", {"customer": rules_data.get("customer")})
-    updated = ps.model_copy(update={"step": "schema_route", "rules_data": rules_data})
+
+    db.log_event(ps.trace_id, "setup", {
+        "doc_type_hint": guessed_type,
+        "customer": rules_data.get("customer"),
+        "paths": paths,
+    })
+    updated = ps.model_copy(update={"step": "extractor", "rules_data": rules_data})
     _checkpoint(updated)
     return updated.model_dump()
 
 
-def node_schema_route(state: dict) -> dict:
-    ps = PipelineState(**state)
-    db.log_event(ps.trace_id, "schema_route", {"fields": "8 standard trade fields"})
-    updated = ps.model_copy(update={"step": "extractor"})
-    _checkpoint(updated)
-    return updated.model_dump()
 
 
 def node_extractor(state: dict) -> dict:
@@ -129,22 +128,18 @@ def _checkpoint(ps: PipelineState) -> None:
 
 def _build_graph() -> Any:
     g = StateGraph(dict)
-    g.add_node("scope", node_scope)
-    g.add_node("context", node_context)
-    g.add_node("schema_route", node_schema_route)
+    g.add_node("setup",     node_setup)
     g.add_node("extractor", node_extractor)
     g.add_node("validator", node_validator)
-    g.add_node("router", node_router)
-    g.add_node("persist", node_persist)
+    g.add_node("router",    node_router)
+    g.add_node("persist",   node_persist)
 
-    g.set_entry_point("scope")
-    g.add_edge("scope", "context")
-    g.add_edge("context", "schema_route")
-    g.add_edge("schema_route", "extractor")
+    g.set_entry_point("setup")
+    g.add_edge("setup",     "extractor")
     g.add_edge("extractor", "validator")
     g.add_edge("validator", "router")
-    g.add_edge("router", "persist")
-    g.add_edge("persist", END)
+    g.add_edge("router",    "persist")
+    g.add_edge("persist",   END)
     return g.compile()
 
 
@@ -163,13 +158,11 @@ def _get_graph():
 # ──────────────────────────────────────────────
 
 _STEP_TO_NODE = {
-    "scope": "scope",
-    "context": "context",
-    "schema_route": "schema_route",
+    "setup":     "setup",
     "extractor": "extractor",
     "validator": "validator",
-    "router": "router",
-    "persist": "persist",
+    "router":    "router",
+    "persist":   "persist",
 }
 
 
@@ -195,13 +188,16 @@ def resume(trace_id: str) -> PipelineState:
     # Rebuild graph starting from the current step node
     g = StateGraph(dict)
     nodes = {
-        "scope": node_scope, "context": node_context, "schema_route": node_schema_route,
-        "extractor": node_extractor, "validator": node_validator,
-        "router": node_router, "persist": node_persist,
+        "setup":     node_setup,
+        "extractor": node_extractor,
+        "validator": node_validator,
+        "router":    node_router,
+        "persist":   node_persist,
     }
-    order = ["scope", "context", "schema_route", "extractor", "validator", "router", "persist"]
+    order = ["setup", "extractor", "validator", "router", "persist"]
 
-    # Find where to resume
+    # checkpoint step is the NEXT node to run (saved at end of each node),
+    # so resume starts exactly at current_step — no node is re-executed.
     if current_step in order:
         start_idx = order.index(current_step)
     else:
@@ -230,7 +226,7 @@ def run_partial(trace_id: str, doc_paths: list[str]) -> PipelineState:
     """Run pipeline through extractor only (simulates a crash before validator)."""
     db.init_db()
     state = PipelineState(trace_id=trace_id, raw_doc_paths=doc_paths).model_dump()
-    for node_fn in [node_scope, node_context, node_schema_route, node_extractor]:
+    for node_fn in [node_setup, node_extractor]:
         state = node_fn(state)
     ps = PipelineState(**state)
     print(f"[pipeline] Partial run complete at step={ps.step}, cost=${ps.cost_usd:.6f}")

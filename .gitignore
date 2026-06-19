@@ -30,6 +30,13 @@ nova.db
 *.cover
 .coverage
 
+# Runtime inbox state (shipments move through these at runtime)
+inbox/processing/*/
+inbox/processed/*/
+
+# Regenerated build outputs (scripts write these to root)
+PRD.pdf
+
 # OS
 .DS_Store
 Thumbs.db

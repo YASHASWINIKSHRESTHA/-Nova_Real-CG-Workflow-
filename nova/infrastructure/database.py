@@ -59,7 +59,29 @@ def init_db() -> None:
             cost_usd    REAL    NOT NULL DEFAULT 0.0,
             created_at  TEXT    NOT NULL
         );
+
+        -- Part 2: cross-document consistency results
+        CREATE TABLE IF NOT EXISTS cross_doc_checks (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            trace_id     TEXT    NOT NULL,
+            field        TEXT    NOT NULL,
+            status       TEXT    NOT NULL,
+            values_json  TEXT    NOT NULL,
+            reason       TEXT,
+            created_at   TEXT    NOT NULL
+        );
         """)
+
+        # Migrate: add columns that may not exist in older DBs
+        _add_column_if_missing(conn, "shipments", "customer", "TEXT")
+        _add_column_if_missing(conn, "fields", "doc_type", "TEXT DEFAULT 'UNKNOWN'")
+
+
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, col_def: str) -> None:
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
+    except sqlite3.OperationalError:
+        pass  # column already exists
 
 
 def save_checkpoint(trace_id: str, step: str, state_json: str, cost_usd: float) -> None:
@@ -85,6 +107,8 @@ def load_checkpoint(trace_id: str) -> Optional[dict]:
         return None
     return dict(row)
 
+
+# ── Part 1: single-doc persist ────────────────────────────────────────────────
 
 def persist_results(trace_id: str, doc_paths: list[str], extracted, validation, decision) -> None:
     now = datetime.utcnow().isoformat()
@@ -115,6 +139,78 @@ def persist_results(trace_id: str, doc_paths: list[str], extracted, validation, 
             INSERT INTO audit_log (trace_id, event_type, payload_json, created_at)
             VALUES (?, ?, ?, ?)
         """, (trace_id, "pipeline_complete", json.dumps({"action": decision.action if decision else None}), now))
+
+
+# ── Part 2: multi-doc CG persist ──────────────────────────────────────────────
+
+def persist_cg_results(ps) -> None:
+    """
+    Persist CG pipeline results:
+    - One shipments row (with customer column)
+    - One fields row per field per doc (with doc_type column)
+    - Cross-doc verdicts in cross_doc_checks
+    - Decision row
+    """
+    from nova.domain.models import PipelineState
+    now = datetime.utcnow().isoformat()
+
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO shipments (trace_id, doc_paths, status, customer, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(trace_id) DO UPDATE SET
+                status=excluded.status,
+                customer=excluded.customer,
+                created_at=excluded.created_at
+        """, (
+            ps.trace_id,
+            json.dumps(ps.raw_doc_paths),
+            ps.decision.action if ps.decision else "pending_cg_review",
+            ps.customer,
+            now,
+        ))
+
+        # Per-doc fields with doc_type
+        for doc in ps.extracted_docs:
+            for fname in doc.field_names():
+                fv = doc.get_field(fname)
+                conn.execute("""
+                    INSERT INTO fields
+                        (trace_id, field_name, value, confidence, source_snippet, source_page, doc_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    ps.trace_id, fname, fv.value, fv.confidence,
+                    fv.source_snippet, fv.source_page, doc.doc_type,
+                ))
+
+        # Cross-doc verdicts
+        if ps.cross_doc:
+            for verdict in ps.cross_doc.verdicts:
+                conn.execute("""
+                    INSERT INTO cross_doc_checks
+                        (trace_id, field, status, values_json, reason, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    ps.trace_id, verdict.field, verdict.status,
+                    json.dumps(verdict.values_by_doc), verdict.reason, now,
+                ))
+
+        # Decision (store amendment_email OR approval_email)
+        if ps.decision:
+            email_col = ps.decision.amendment_email or ps.decision.approval_email
+            conn.execute("""
+                INSERT INTO decisions (trace_id, action, reasoning, amendment_email, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (ps.trace_id, ps.decision.action, ps.decision.reasoning, email_col, now))
+
+        conn.execute("""
+            INSERT INTO audit_log (trace_id, event_type, payload_json, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (
+            ps.trace_id, "cg_pipeline_complete",
+            json.dumps({"action": ps.decision.action if ps.decision else None, "customer": ps.customer}),
+            now,
+        ))
 
 
 def log_event(trace_id: str, event_type: str, payload: dict) -> None:

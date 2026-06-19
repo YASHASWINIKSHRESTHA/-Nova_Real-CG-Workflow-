@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from nova.infrastructure import database as db
 from nova.pipeline.pipeline import (
-    node_context, node_extractor, node_persist,
-    node_router, node_schema_route, node_scope, node_validator,
+    node_setup, node_extractor, node_persist,
+    node_router, node_validator,
 )
 from nova.domain.models import PipelineState
 from nova.pipeline import resume
@@ -138,28 +138,43 @@ def inject_css():
            if b64 else
            "linear-gradient(135deg,#05080F 0%,#080E20 50%,#05080F 100%)")
 
-    st.markdown(f"""<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-*{{font-family:'Inter',sans-serif!important;box-sizing:border-box;}}
+    st.markdown(
+        '<link rel="preconnect" href="https://fonts.googleapis.com">'
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">',
+        unsafe_allow_html=True,
+    )
 
-body::before{{content:'';position:fixed;inset:0;
-  background:{bg};transform-origin:top right;
+    st.markdown(f"""<style>
+html,body,input,button,textarea,select,
+.stApp,[class*="st"],.stMarkdown,p,span,div,label,th,td,a{{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif!important;}}
+*{{box-sizing:border-box;}}
+
+html{{background:#05080F!important;min-height:100vh!important;}}
+body{{background:transparent!important;min-height:100vh!important;}}
+
+html::before{{content:'';position:fixed;inset:-8%;
+  background:{bg};transform-origin:center;
   animation:nova-breathe 22s ease-in-out infinite alternate;
   z-index:-2;will-change:transform;pointer-events:none;perspective:800px;}}
 
 @keyframes nova-breathe{{
   0%  {{transform:scale(1.00) translateZ(0px)   rotateX(0deg)    rotateY(0deg);}}
-  25% {{transform:scale(1.04) translateZ(8px)   rotateX(0.4deg)  rotateY(-0.3deg);}}
-  50% {{transform:scale(1.06) translateZ(14px)  rotateX(0.6deg)  rotateY(0.2deg);}}
-  75% {{transform:scale(1.03) translateZ(6px)   rotateX(-0.2deg) rotateY(0.4deg);}}
+  25% {{transform:scale(1.03) translateZ(8px)   rotateX(0.4deg)  rotateY(-0.3deg);}}
+  50% {{transform:scale(1.05) translateZ(14px)  rotateX(0.6deg)  rotateY(0.2deg);}}
+  75% {{transform:scale(1.02) translateZ(6px)   rotateX(-0.2deg) rotateY(0.4deg);}}
   100%{{transform:scale(1.00) translateZ(0px)   rotateX(0deg)    rotateY(0deg);}}}}
 
-body::after{{content:'';position:fixed;inset:0;
+html::after{{content:'';position:fixed;inset:0;
   background:radial-gradient(ellipse at 70% 25%,rgba(5,8,20,.20) 0%,rgba(5,8,20,.55) 55%,rgba(5,8,20,.78) 100%);
   z-index:-1;pointer-events:none;}}
 
 .stApp,[data-testid="stAppViewContainer"],[data-testid="stHeader"],
-[data-testid="stBottom"],section[data-testid="stSidebar"]{{background:transparent!important;}}
+[data-testid="stBottom"],section[data-testid="stSidebar"],
+[data-testid="stMain"],[data-testid="stAppViewBlockContainer"],
+[data-testid="stSidebarContent"]{{background:transparent!important;}}
+[data-testid="stDecoration"]{{display:none!important;}}
 
 section[data-testid="stSidebar"]>div:first-child{{
   background:rgba(5,10,28,0.85)!important;
@@ -596,16 +611,13 @@ if _nav == "pipeline":
 
     def run_pipeline_live(trace_id, doc_paths):
         from nova.pipeline.pipeline import (
-            node_scope, node_context, node_schema_route,
-            node_extractor, node_validator, node_router, node_persist,
+            node_setup, node_extractor, node_validator, node_router, node_persist,
         )
         state = PipelineState(trace_id=trace_id, raw_doc_paths=doc_paths).model_dump()
 
         set_step("extract")
         stepper_ph.markdown(build_stepper("extract"), unsafe_allow_html=True)
-        state = node_scope(state)
-        state = node_context(state)
-        state = node_schema_route(state)
+        state = node_setup(state)
 
         set_step("validate")
         stepper_ph.markdown(build_stepper("validate"), unsafe_allow_html=True)

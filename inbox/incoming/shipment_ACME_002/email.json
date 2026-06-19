@@ -1,0 +1,9 @@
+{
+  "message_id": "su-acme-2026-002",
+  "from": "exports@guangzhou-parts.com",
+  "to": "cg@gocomet.com",
+  "subject": "Shipment docs \u2014 PO 4472 \u2014 ACME Logistics",
+  "body": "Dear GoComet CG team,\n\nPlease find attached the Bill of Lading, Commercial Invoice, and Packing List for shipment PO-4472 (Guangzhou origin). Documents prepared per agreed FOB terms.\n\nKindly process clearance.\n\nBest regards,\nGuangzhou Parts Co Ltd",
+  "customer": "Acme Logistics",
+  "received_at": "2026-06-13T10:30:00"
+}
