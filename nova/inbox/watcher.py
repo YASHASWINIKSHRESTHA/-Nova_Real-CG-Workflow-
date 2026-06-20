@@ -14,6 +14,10 @@ from typing import Optional
 
 INBOX = Path(__file__).parent.parent.parent / "inbox"
 
+# Ensure all inbox subdirs exist (needed on Streamlit Cloud fresh deploy)
+for _d in ("incoming", "processing", "processed"):
+    (INBOX / _d).mkdir(parents=True, exist_ok=True)
+
 _ATTACHMENT_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
 
 

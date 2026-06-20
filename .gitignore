@@ -18,8 +18,8 @@ env/
 .env
 *.env
 
-# Streamlit
-.streamlit/
+# Streamlit — allow config.toml (needed for cloud deploy), block secrets.toml
+.streamlit/secrets.toml
 
 # SQLite runtime database
 nova.db
