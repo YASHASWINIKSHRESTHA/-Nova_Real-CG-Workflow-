@@ -60,7 +60,9 @@ def inject_css():
     st.markdown(
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">',
+        '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">'
+        '<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">'
+        '<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Sharp" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
@@ -97,13 +99,10 @@ html::after{{content:'';position:fixed;inset:0;
 [data-testid="stSidebarContent"]{{background:transparent!important;}}
 [data-testid="stDecoration"]{{display:none!important;}}
 
-/* ── Hide sidebar collapse arrow icon text (Material Icons ligature) ── */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"],
-button[data-testid="baseButton-header"] span,
-.eyeqlp51 span{{font-size:0!important;}}
-[data-testid="stSidebarCollapsedControl"] *,
-[data-testid="collapsedControl"] *{{color:transparent!important;font-size:0!important;}}
+/* ── Material Icons / Symbols — ensure ligatures render as icons not text ── */
+.material-symbols-rounded{{font-family:'Material Symbols Rounded'!important;
+  font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;}}
+.material-icons-sharp,.material-icons{{font-family:'Material Icons Sharp','Material Icons'!important;}}
 
 /* ── Sidebar ── */
 section[data-testid="stSidebar"]>div:first-child{{
