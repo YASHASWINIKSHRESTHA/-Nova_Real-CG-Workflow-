@@ -553,15 +553,16 @@ def render_per_doc_tables(ps: PipelineState) -> None:
             'border-radius:12px;overflow:hidden;margin-bottom:8px;">'
             '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">'
             '<colgroup>'
-            '<col style="width:18%">'   # Field
-            '<col style="width:20%">'   # Value
-            '<col style="width:7%">'    # Conf
-            '<col style="width:13%">'   # Verdict
-            '<col style="width:42%">'   # Reason
+            '<col style="width:14%">'   # Field
+            '<col style="width:15%">'   # Value
+            '<col style="width:16%">'   # Expected
+            '<col style="width:6%">'    # Conf
+            '<col style="width:12%">'   # Verdict
+            '<col style="width:37%">'   # Reason
             '</colgroup>'
             '<thead><tr style="border-bottom:1px solid rgba(255,255,255,.07);">'
         )
-        for h in ["Field", "Value", "Conf", "Verdict", "Reason"]:
+        for h in ["Field", "Value", "Expected (Rule)", "Conf", "Verdict", "Reason"]:
             tbl += (f'<th style="color:#7EB5FF;font-size:.63rem;font-weight:700;'
                     f'letter-spacing:.07em;text-transform:uppercase;padding:7px 10px;'
                     f'text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
@@ -574,6 +575,8 @@ def render_per_doc_tables(ps: PipelineState) -> None:
             status = verd.status if verd else "uncertain"
             reason = verd.reason if verd else "—"
             cc = conf_color(fv.confidence)
+            expected_val = (verd.expected or "—") if verd else "—"
+            exp_color = AMBER if (verd and verd.status == "mismatch") else "rgba(255,255,255,.48)"
             tbl += (
                 f'<tr style="border-bottom:1px solid rgba(255,255,255,.04);">'
                 f'<td style="color:#fff;font-weight:600;font-size:.75rem;padding:6px 10px;'
@@ -582,6 +585,10 @@ def render_per_doc_tables(ps: PipelineState) -> None:
                 f'<td style="color:rgba(255,255,255,.82);font-family:monospace;font-size:.73rem;'
                 f'padding:6px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
                 f'{fv.value or "—"}</td>'
+                f'<td style="color:{exp_color};font-family:monospace;font-size:.68rem;'
+                f'padding:6px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" '
+                f'title="{expected_val}">'
+                f'{expected_val[:24]}{"…" if len(expected_val) > 24 else ""}</td>'
                 f'<td style="padding:6px 10px;white-space:nowrap;">'
                 f'<span style="color:{cc};font-weight:700;font-size:.74rem;">'
                 f'{int(fv.confidence*100)}%</span></td>'
@@ -626,10 +633,58 @@ def render_discrepancy_detail(ps: PipelineState) -> None:
         st.success("No discrepancies found — all fields passed validation across all documents.")
         return
 
+    # ── Rule Comparison Summary ──────────────────────────────────────────────
+    # One row per issue: Field | Doc | Expected (Rule) | Found in Doc | Status
+    _summ_rows = []
+    for _fn in sorted(all_problem_fields):
+        for _dt, _fv, _v in flagged_fields.get(_fn, []):
+            _summ_rows.append((_fn, _dt, _v.expected or "—", _fv.value or "—", _v.status))
+        if _fn in cross_flagged and not flagged_fields.get(_fn):
+            _cv = cross_flagged[_fn]
+            _vals = " / ".join(f"{k}: {v}" for k, v in list(_cv.values_by_doc.items())[:3])
+            _summ_rows.append((_fn, "cross-doc", "consistent across docs", _vals, "inconsistent"))
+
+    if _summ_rows:
+        _stbl = (
+            '<div style="background:rgba(5,10,28,.72);border:1px solid rgba(239,68,68,.25);'
+            'border-radius:12px;overflow:hidden;margin-bottom:16px;">'
+            '<div style="padding:8px 12px;border-bottom:1px solid rgba(239,68,68,.18);'
+            'background:rgba(239,68,68,.08);">'
+            '<span style="color:#EF4444;font-size:.65rem;font-weight:700;letter-spacing:.08em;'
+            'text-transform:uppercase;">Rule Comparison — Expected vs Found</span></div>'
+            '<table style="width:100%;border-collapse:collapse;">'
+            '<thead><tr style="border-bottom:1px solid rgba(255,255,255,.07);">'
+        )
+        for _h in ["Field", "Doc", "Expected (Rule)", "Found in Doc", "Status"]:
+            _stbl += (
+                f'<th style="color:#7EB5FF;font-size:.61rem;font-weight:700;'
+                f'letter-spacing:.06em;text-transform:uppercase;'
+                f'padding:7px 10px;text-align:left;">{_h}</th>'
+            )
+        _stbl += '</tr></thead><tbody>'
+        for (_fn, _dt, _exp, _fnd, _sts) in _summ_rows:
+            _sc = RED if _sts in ("mismatch", "inconsistent") else AMBER
+            _stbl += (
+                f'<tr style="border-bottom:1px solid rgba(255,255,255,.04);">'
+                f'<td style="color:#fff;font-weight:600;font-size:.74rem;'
+                f'padding:6px 10px;white-space:nowrap;">'
+                f'{_fn.replace("_"," ").title()}</td>'
+                f'<td style="color:#7EB5FF;font-size:.72rem;padding:6px 10px;white-space:nowrap;">'
+                f'{_dt}</td>'
+                f'<td style="color:{AMBER};font-family:monospace;font-size:.72rem;padding:6px 10px;">'
+                f'{_exp}</td>'
+                f'<td style="color:#fff;font-family:monospace;font-size:.72rem;padding:6px 10px;">'
+                f'{_fnd}</td>'
+                f'<td style="padding:6px 10px;">{verdict_badge(_sts)}</td>'
+                f'</tr>'
+            )
+        _stbl += '</tbody></table></div>'
+        st.markdown(_stbl, unsafe_allow_html=True)
+
     st.markdown(
         f'<div style="color:#7EB5FF;font-size:.70rem;font-weight:700;'
         f'letter-spacing:.09em;text-transform:uppercase;margin-bottom:10px;">'
-        f'{len(all_problem_fields)} field(s) flagged — click to expand</div>',
+        f'{len(all_problem_fields)} field(s) flagged — click for source evidence</div>',
         unsafe_allow_html=True,
     )
 
@@ -1052,6 +1107,47 @@ if _nav == "pipeline":
 
 elif _nav == "inbox":
 
+    # ── Queue Dashboard ──────────────────────────────────────────────────────
+    _all_s = watcher.list_all_shipments()
+    _q_in   = sum(1 for s in _all_s if s["phase"] == "incoming")
+    _q_attn = sum(1 for s in _all_s
+                  if s["phase"] == "processed" and not s.get("reply_sent")
+                  and s.get("status") in ("draft_amendment", "flag_for_review"))
+    _q_appr = sum(1 for s in _all_s if s.get("status") == "auto_approve")
+    _q_sent = sum(1 for s in _all_s if s.get("reply_sent"))
+    _in_bg   = "rgba(217,119,6,.18)"  if _q_in   else "rgba(217,119,6,.08)"
+    _attn_bg = "rgba(239,68,68,.18)"  if _q_attn else "rgba(239,68,68,.08)"
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;">'
+        f'<div style="background:rgba(21,101,255,.10);border:1px solid rgba(21,101,255,.25);'
+        f'border-radius:10px;padding:10px 14px;">'
+        f'<div style="color:#7EB5FF;font-size:1.40rem;font-weight:800;line-height:1;">{len(_all_s)}</div>'
+        f'<div style="color:rgba(255,255,255,.85);font-size:.72rem;font-weight:600;margin-top:3px;">Queue Total</div>'
+        f'<div style="color:rgba(255,255,255,.45);font-size:.62rem;">all shipments</div></div>'
+        f'<div style="background:{_in_bg};border:1px solid rgba(217,119,6,.30);'
+        f'border-radius:10px;padding:10px 14px;">'
+        f'<div style="color:#D97706;font-size:1.40rem;font-weight:800;line-height:1;">{_q_in}</div>'
+        f'<div style="color:rgba(255,255,255,.85);font-size:.72rem;font-weight:600;margin-top:3px;">New Incoming</div>'
+        f'<div style="color:rgba(255,255,255,.45);font-size:.62rem;">awaiting processing</div></div>'
+        f'<div style="background:{_attn_bg};border:1px solid rgba(239,68,68,.30);'
+        f'border-radius:10px;padding:10px 14px;">'
+        f'<div style="color:#EF4444;font-size:1.40rem;font-weight:800;line-height:1;">{_q_attn}</div>'
+        f'<div style="color:rgba(255,255,255,.85);font-size:.72rem;font-weight:600;margin-top:3px;">Needs Review</div>'
+        f'<div style="color:rgba(255,255,255,.45);font-size:.62rem;">CG action required</div></div>'
+        f'<div style="background:rgba(5,150,105,.10);border:1px solid rgba(5,150,105,.25);'
+        f'border-radius:10px;padding:10px 14px;">'
+        f'<div style="color:#059669;font-size:1.40rem;font-weight:800;line-height:1;">{_q_appr}</div>'
+        f'<div style="color:rgba(255,255,255,.85);font-size:.72rem;font-weight:600;margin-top:3px;">Auto-Approved</div>'
+        f'<div style="color:rgba(255,255,255,.45);font-size:.62rem;">no action needed</div></div>'
+        f'<div style="background:rgba(21,101,255,.08);border:1px solid rgba(21,101,255,.20);'
+        f'border-radius:10px;padding:10px 14px;">'
+        f'<div style="color:#7EB5FF;font-size:1.40rem;font-weight:800;line-height:1;">{_q_sent}</div>'
+        f'<div style="color:rgba(255,255,255,.85);font-size:.72rem;font-weight:600;margin-top:3px;">Replies Sent</div>'
+        f'<div style="color:rgba(255,255,255,.45);font-size:.62rem;">dispatch complete</div></div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
     col_list, col_detail = st.columns([1, 2.2], gap="large")
 
     # ── left panel: shipment list ──────────────────────────────────────────────
@@ -1066,9 +1162,26 @@ elif _nav == "inbox":
         if st.button("Refresh Inbox", type="secondary", use_container_width=True):
             st.rerun()
 
-        st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
+        _cust_q = st.text_input(
+            "customer filter",
+            placeholder="Customer name (e.g. Acme Logistics)…",
+            key="cg_inbox_cust_filter",
+            label_visibility="collapsed",
+        )
+        if st.button("Find Pending for Customer", key="cg_find_pending",
+                     use_container_width=True):
+            _qstr = (
+                f"Show me everything pending review for {_cust_q.strip()}"
+                if _cust_q.strip()
+                else "Show me all shipments currently pending CG review"
+            )
+            st.session_state["cg_prefill_query"] = _qstr
+            st.session_state["cg_nav"] = "query"
+            st.rerun()
+        st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
 
-        shipments = watcher.list_all_shipments()
+        shipments = _all_s
 
         if not shipments:
             st.markdown(
@@ -1082,11 +1195,48 @@ elif _nav == "inbox":
             if "cg_selected" not in st.session_state:
                 st.session_state["cg_selected"] = None
 
-            for s in shipments:
+            def _sort_p(s):
+                _ph = s["phase"]
+                _st = s.get("status") or ""
+                _rs = s.get("reply_sent", False)
+                if _ph == "incoming": return (0, s["name"])
+                if _st == "draft_amendment" and not _rs: return (1, s["name"])
+                if _st == "flag_for_review" and not _rs: return (2, s["name"])
+                if _st == "auto_approve" and not _rs: return (3, s["name"])
+                return (4, s["name"])
+
+            for s in sorted(shipments, key=_sort_p):
                 folder = s["folder"]
                 is_selected = st.session_state["cg_selected"] == str(folder)
                 border = f"2px solid {BLUE}" if is_selected else "1px solid rgba(21,101,255,.15)"
                 bg = "rgba(21,101,255,.14)" if is_selected else "rgba(8,15,40,.55)"
+                _s_status = s.get("status") or ""
+                _needs_action = (s["phase"] == "processed" and not s.get("reply_sent")
+                                 and _s_status in ("draft_amendment", "flag_for_review"))
+                if s["phase"] == "incoming":
+                    _status_line = (
+                        f'<div style="color:#D97706;font-size:.62rem;font-weight:600;margin-top:3px;">'
+                        f'NEW — awaiting processing</div>'
+                    )
+                elif _needs_action:
+                    _sc = RED if _s_status == "draft_amendment" else AMBER
+                    _sl = "DRAFT AMENDMENT" if _s_status == "draft_amendment" else "FLAG FOR REVIEW"
+                    _status_line = (
+                        f'<div style="color:{_sc};font-size:.62rem;font-weight:700;margin-top:3px;">'
+                        f'&#9888; {_sl} — ACTION REQUIRED</div>'
+                    )
+                elif _s_status == "auto_approve" and not s.get("reply_sent"):
+                    _status_line = (
+                        f'<div style="color:#059669;font-size:.62rem;font-weight:600;margin-top:3px;">'
+                        f'&#10003; Approved — send reply</div>'
+                    )
+                elif s.get("reply_sent"):
+                    _status_line = (
+                        f'<div style="color:rgba(255,255,255,.40);font-size:.62rem;margin-top:3px;">'
+                        f'Reply sent &#10003;</div>'
+                    )
+                else:
+                    _status_line = ""
 
                 st.markdown(
                     f'<div style="background:{bg};border:{border};border-radius:10px;'
@@ -1101,9 +1251,7 @@ elif _nav == "inbox":
                     f'<div style="color:rgba(255,255,255,.90);font-size:.70rem;margin-top:4px;'
                     f'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
                     f'{s["customer"]} · {s["n_attachments"]} file(s)</div>'
-                    f'<div style="color:rgba(255,255,255,.85);font-size:.66rem;'
-                    f'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-                    f'{s["subject"][:45]}{"…" if len(s["subject"]) > 45 else ""}</div>'
+                    f'{_status_line}'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
@@ -1429,6 +1577,17 @@ elif _nav == "query":
     if "cg_query_hist" not in st.session_state:
         st.session_state["cg_query_hist"] = []
 
+    # Pre-fill from "Find Pending for Customer" shortcut in Inbox
+    _prefill = st.session_state.pop("cg_prefill_query", "")
+    if _prefill:
+        st.markdown(
+            f'<div style="background:rgba(21,101,255,.12);border:1px solid rgba(21,101,255,.30);'
+            f'border-radius:9px;padding:8px 14px;margin-bottom:10px;'
+            f'color:#7EB5FF;font-size:.76rem;">'
+            f'&#128279; Query pre-filled from Inbox shortcut</div>',
+            unsafe_allow_html=True,
+        )
+
     examples = [
         "Show me everything pending review for Acme Logistics",
         "How many shipments had cross-document mismatches this week?",
@@ -1439,7 +1598,7 @@ elif _nav == "query":
     sel = st.selectbox("Example questions:", ["— pick one —"] + examples, key="cg_q_sel")
     question = st.text_input(
         "Your question:",
-        value=sel if sel != "— pick one —" else "",
+        value=_prefill or (sel if sel != "— pick one —" else ""),
         key="cg_q_input",
         placeholder="e.g. Show everything pending review for Acme Logistics",
     )
