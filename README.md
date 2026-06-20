@@ -1,4 +1,6 @@
-# Nova POC — Governed Trade Document Validation Pipeline
+# Nova POC — Governed Trade Document Validation
+
+### A multi-agent pipeline where the model is never trusted without evidence, the verdict is deterministic, and only a human can hit Send.
 
 > *"Nova doesn't get to be a confident liar. A wrongly auto-approved HS code is a customs hold plus a contract penalty — so the system is built so that nothing reaches the customer without evidence and a human click."*
 
@@ -20,7 +22,7 @@ The thesis of this build is not "a smarter prompt." It is **separation of concer
 3. [Full Setup (Mac / Linux / Windows)](#3-full-setup-mac--linux--windows)
 4. [Guided Demo Script (what to click, what you'll see)](#4-guided-demo-script)
 5. [Architecture](#5-architecture)
-6. [The Five Trust Guarantees (USP)](#6-the-five-trust-guarantees-usp)
+6. [The Five Trust Guarantees — Where I Refuse to Trust the Model (USP)](#6-the-five-trust-guarantees--where-i-refuse-to-trust-the-model-usp)
 7. [Project Structure](#7-project-structure)
 8. [Data Model & Storage](#8-data-model--storage)
 9. [Running Each Piece (CLI)](#9-running-each-piece-cli)
@@ -202,24 +204,169 @@ The CG pipeline is a **7-node LangGraph DAG** with a typed state object; the Par
 
 ---
 
-## 6. The Five Trust Guarantees (USP)
+## 6. The Five Trust Guarantees — Where I Refuse to Trust the Model (USP)
 
-These are the design decisions that distinguish this build. Each maps to a specific file and function so it can be verified, not just claimed.
+This is the part that makes Nova different from a one-prompt document reader. The uniqueness is **not** a cleverer prompt — it is a set of *structural* guarantees that hold no matter what the LLM emits. Each one is written below as: the **naive approach** most people reach for, **what I did instead**, the **exact code** that enforces it, and the **failure it defeats**. Every line reference is real and checkable in this repo.
 
-**1 — Hallucination is blocked structurally, not by prompt-begging.**
-`domain/models.py · FieldValue.cap_confidence_without_snippet` caps confidence at **≤ 0.3** for any field the model returns without a verbatim `source_snippet`. The validator then turns anything **< 0.85** into `uncertain`, and the router blocks auto-approve on *any* uncertain field. A field the model invented therefore has no evidence → it can never clear the gate. Silent approval is made impossible by construction.
+> **The one-line thesis:** extraction, validation, cross-document consistency, and *sending* are four separate stages; the high-stakes ones are deterministic; the model is never the judge of a verdict; and the agent has no code path to send on its own. A silent auto-approval of a wrong field is the worst possible outcome, so the system makes it *unreachable*, not merely *unlikely*.
 
-**2 — The decision is deterministic; the LLM is not the judge.**
-`agents/validator.py` checks **7 of 8 fields** against `config/rules.yaml` with pure-Python match types (`exact_ci`, `prefix`, `enum`, `numeric_tolerance`, `regex`); the LLM is used only for vision extraction and one semantic goods-description check. `agents/router.py · route()/_classify()` is plain code: all-match → approve, any uncertain → flag, any mismatch → amend. Same input → same verdict, every run. *This is the answer to "why three agents, not one prompt."*
+---
 
-**3 — The cross-document gate has no bypass.**
-`agents/cross_validator.py` deterministically compares the three shared fields across all attachments and checks required fields per document type. `agents/router.py · route_shipment()` forces `draft_amendment` whenever `all_consistent == False` — even if every per-document verdict individually passes. Values are keyed `doc_type[i]` so two documents of the same type cannot overwrite each other (a real collision bug, now fixed and covered by a test).
+### USP 1 — Hallucination is blocked structurally, not by prompt-begging
 
-**4 — Crash-safe, without re-billing the expensive call.**
-`infrastructure/database.py · save_checkpoint()/resume()` writes a checkpoint at the *end* of each node. `resume(trace_id)` skips completed nodes, so a crash after extraction does not re-run the GPT-4o vision call. **Honest limit:** a crash *inside* a node, after its LLM call but before its checkpoint, re-runs that one node — stated plainly rather than over-claimed.
+**Naive approach.** Tell the model *"only extract fields that are actually present, do not make anything up,"* trust the confidence number it returns, and approve anything ≥ some threshold.
 
-**5 — Explainable and queryable end-to-end.**
-Every field keeps its snippet and page, every verdict carries a reason string, every decision carries reasoning text — all persisted to SQLite. `query/query.py` turns plain-English questions into **SELECT-only** SQL (any non-SELECT statement is rejected) and answers from the real rows, so any dispute traces back to the exact document text.
+**Why that fails.** A hallucinated field comes back with a *high* confidence and *no evidence* — the model is most confident exactly when it is confabulating a plausible-looking HS code. A prompt instruction is a request, not a guarantee.
+
+**What I did instead.** Evidence is mandatory and is wired into the type system. Every extracted field is a `FieldValue` that must carry a `source_snippet`; if it doesn't, a Pydantic `model_validator` **forcibly caps its confidence at 0.3** before the value can travel anywhere. A capped field is then below the 0.85 acceptance threshold, so it can never be auto-approved.
+
+**Code — `nova/domain/models.py:12–15`:**
+```python
+@model_validator(mode="after")
+def cap_confidence_without_snippet(self) -> "FieldValue":
+    if self.source_snippet is None and self.confidence > 0.3:
+        self.confidence = 0.3
+    return self
+```
+Threshold enforcement — `nova/agents/validator.py:20,29–31`:
+```python
+_CONFIDENCE_THRESHOLD = 0.85
+def _enforce_confidence(status, confidence):
+    if confidence < _CONFIDENCE_THRESHOLD:
+        return "uncertain"
+```
+
+**Failure it defeats.** The model invents `HS Code 8528.72` that appears nowhere in the document. With no snippet, its confidence is hard-capped to 0.3 → marked `uncertain` → the router refuses to auto-approve. The invented field surfaces to a human instead of slipping through. *Silent approval of a hallucinated field is structurally impossible.*
+
+---
+
+### USP 2 — The decision is deterministic; the LLM is not the judge
+
+**Naive approach.** Ask one big model, *"here are the rules and the document — is this shipment OK? Reply approve / reject."* Let the LLM render the final verdict.
+
+**Why that fails.** The verdict becomes non-reproducible (same input, different answer on retry), unauditable (no explainable rule trail), and unfixable (you can't unit-test a vibe). You also can't tell a customer *why* their shipment was held.
+
+**What I did instead.** The LLM extracts; **pure Python decides.** 7 of the 8 fields are checked against `config/rules.yaml` with deterministic match types — `exact_ci`, `prefix`, `enum`, `numeric_tolerance`, `regex` — and only the free-text goods description uses a semantic LLM check. The final routing decision is a plain function over the verdict list.
+
+**Code — `nova/agents/validator.py:131–136` (match dispatch):**
+```python
+if   match_type == "exact_ci":          raw_status, expected = _check_exact_ci(fv.value, rule)
+elif match_type == "prefix":            raw_status, expected = _check_prefix(fv.value, rule)
+elif match_type == "enum":              raw_status, expected = _check_enum(fv.value, rule)
+elif match_type == "numeric_tolerance": raw_status, expected = _check_numeric_tolerance(fv.value, rule)
+elif match_type == "regex":             raw_status, expected = _check_regex(fv.value, rule)
+```
+Decision is plain code — `nova/agents/router.py:29–37`:
+```python
+def _classify(verdicts):
+    has_mismatch  = any(v.status == "mismatch"  for v in verdicts)
+    has_uncertain = any(v.status == "uncertain" for v in verdicts)
+    if has_mismatch:  return "draft_amendment"
+    if has_uncertain: return "flag_for_review"
+    return "auto_approve"
+```
+
+**Failure it defeats.** Non-reproducible approvals and "the AI said so" audits. Here, the same shipment yields the same verdict every run, each field cites the exact rule it was checked against, and the gate is covered by **13 deterministic unit tests** with no live LLM calls. *This is the concrete answer to "why three agents, not one prompt."*
+
+---
+
+### USP 3 — The cross-document gate has no bypass
+
+**Naive approach.** Validate each document on its own. If the BOL passes, the invoice passes, and the packing list passes, approve the shipment.
+
+**Why that fails.** Per-document validation can't catch the most common real defect: each document is internally fine, but they *disagree with each other* — the BOL says HS `8471.30`, the invoice says `9999.99`. Customs holds the cargo over exactly this.
+
+**What I did instead.** A dedicated deterministic stage compares the three identity fields (`consignee_name · hs_code · invoice_number`) across *all* attachments, and the shipment router **forces `draft_amendment` whenever `all_consistent` is false — overriding every passing per-document verdict.** There is no code path from "inconsistent" to "approve."
+
+**Code — `nova/agents/router.py:175–186` (the override):**
+```python
+# Cross-doc gate: inconsistency cannot be approved
+if not cross.all_consistent:
+    bad = [v for v in cross.verdicts if v.status == "inconsistent"]
+    ...
+    return Decision(action="draft_amendment", reasoning=reasoning,
+                    amendment_email=amendment_email), cost
+# only reached when every shared field agrees:
+merged = _merge_per_doc(per_doc)
+decision, route_cost = route(merged)
+```
+Consistency computed in `nova/agents/cross_validator.py:94–97`, and values are keyed per-document so duplicates can't collide — `cross_validator.py:59`:
+```python
+values_by_doc[f"{doc.doc_type}[{i}]"] = fv.value   # "BOL[0]", "BOL[1]", ...
+```
+
+**Failure it defeats.** Two failures at once. (1) The cross-doc mismatch that per-doc checks miss — now it forces an amendment. (2) A **real collision bug**: before the `doc_type[i]` keying, a shipment with two documents of the same type (or a missing `doc_type`) had one silently overwrite the other in the comparison map, hiding a disagreement. The indexed key fixes it, and it's pinned by a test in `tests/unit/test_cross_doc.py`.
+
+---
+
+### USP 4 — Crash-safe, without re-billing the expensive call
+
+**Naive approach.** Run the pipeline straight through. If it dies halfway, start over.
+
+**Why that fails.** The GPT-4o vision extraction is the costly, slow hop. Re-running the whole pipeline after a crash re-bills extraction every time — and at 50 customers, mid-pipeline failures are routine, not rare.
+
+**What I did instead.** Every node writes a checkpoint to SQLite *on completion*, and `resume(trace_id)` rebuilds the graph from the next uncompleted node — so a crash after extraction resumes at validation and never re-calls the vision model.
+
+**Code — `nova/infrastructure/database.py:87–98`:**
+```python
+def save_checkpoint(trace_id, step, state_json, cost_usd):
+    ...
+    INSERT INTO checkpoints (trace_id, step, state_json, cost_usd, created_at)
+    VALUES (...)
+    ON CONFLICT(trace_id) DO UPDATE SET step=..., state_json=..., cost_usd=...
+```
+
+**Failure it defeats.** Runaway cost from retry storms. After a crash, the resumed run reads the checkpointed `ExtractedDoc` and continues — the vision call is not repeated. **Honest limit, stated rather than hidden:** a crash *inside* a node, after its LLM call but before its checkpoint, re-runs that one node. Checkpoint-at-node-boundary is not exactly-once; it is "never redo a *completed* node," which is the meaningful cost guarantee.
+
+---
+
+### USP 5 — The agent physically cannot auto-send
+
+**Naive approach.** When the verdict is "approve," have the agent send the reply email to the supplier so the loop is fully automated on day one.
+
+**Why that fails.** A single wrong auto-send to a supplier — a wrongly approved HS code, an amendment with a bad field — propagates downstream before any human sees it. The brief calls human-gated send *non-negotiable*; a prompt saying "ask first" is not enforcement.
+
+**What I did instead.** The pipeline graph **terminates at `node_await_cg`** with status `pending_cg_review`. There is no `send` node and no send call anywhere in the pipeline. Dispatch happens only from the UI's **Send** button, on a human click.
+
+**Code — `nova/pipeline/pipeline_cg.py:151–185`:**
+```python
+def node_await_cg_doc(state):
+    # Pipeline terminates here. Status is 'pending_cg_review'.
+    db.log_event(ps.trace_id, "pending_cg_review", {...})
+    ...
+g.add_edge("persist",  "await_cg")
+g.add_edge("await_cg",  END)        # ← graph ends; nothing sends
+```
+
+**Failure it defeats.** An autonomous system emailing customers without review. Here, no input — not a clean shipment, not a confident model, not a retry — can reach a send. The terminal node is the *only* exit, and it stops short of dispatch. *Human-gated send is a property of the graph topology, not a prompt instruction.*
+
+---
+
+### Bonus uniqueness — read-only query layer & real parallelism
+
+- **SELECT-only NL query (`nova/query/query.py:70–78`).** A non-engineer asks plain English; the layer compiles to SQL but **rejects any statement that isn't a `SELECT`**, with an explicit deny-list (`INSERT/UPDATE/DELETE/DROP/CREATE/ALTER/ATTACH/PRAGMA`). The query layer can read the audit trail but can never mutate it.
+  ```python
+  def _is_safe_select(sql):
+      stripped = sql.strip().upper()
+      if not stripped.startswith("SELECT"): return False
+      forbidden = ["INSERT","UPDATE","DELETE","DROP","CREATE","ALTER","ATTACH","PRAGMA"]
+      ...
+  ```
+- **Genuine multi-doc parallelism (`nova/pipeline/multidoc.py:27–28`).** A 3-document shipment extracts through a `ThreadPoolExecutor`, so wall-clock latency is the slowest single document, not the sum — and `pool.map` preserves attachment order so provenance stays correct.
+
+---
+
+### USP at a glance — naive vs. this build
+
+| Concern | Naive one-prompt approach | This build | Enforced in |
+|---|---|---|---|
+| Hallucinated field | Trust the confidence number | No snippet ⇒ confidence capped to 0.3 ⇒ `uncertain` | `models.py:13` |
+| Final verdict | LLM says approve/reject | Deterministic Python over rule checks | `router.py:29` |
+| Cross-doc disagreement | Missed (per-doc only) | `all_consistent=False` forces amendment, no bypass | `router.py:176` |
+| Same-type doc collision | Silent overwrite | `doc_type[i]` keying | `cross_validator.py:59` |
+| Crash mid-run | Re-run + re-bill everything | Resume from next node, skip completed | `database.py:87` |
+| Auto-sending | Agent emails the supplier | Graph ends at `await_cg`; only a human sends | `pipeline_cg.py:185` |
+| Reading the store | Arbitrary SQL | SELECT-only, write keywords rejected | `query.py:70` |
 
 ---
 
