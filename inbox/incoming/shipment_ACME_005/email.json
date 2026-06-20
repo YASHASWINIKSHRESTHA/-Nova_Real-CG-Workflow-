@@ -1,0 +1,9 @@
+{
+  "message_id": "su-acme-2026-005",
+  "from": "logistics@acme-supplier.com",
+  "to": "cg@gocomet.com",
+  "subject": "Shipment docs \u2014 PO 4475 \u2014 ACME Logistics",
+  "body": "Attached docs for PO-4475. DDP Port Klang.",
+  "customer": "Acme Logistics",
+  "received_at": "2026-06-18T09:45:00"
+}

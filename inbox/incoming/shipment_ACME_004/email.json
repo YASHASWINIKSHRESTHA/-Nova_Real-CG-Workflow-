@@ -1,0 +1,9 @@
+{
+  "message_id": "su-acme-2026-004",
+  "from": "exports@acme-supplier.com",
+  "to": "cg@gocomet.com",
+  "subject": "Shipment docs \u2014 PO 4474 \u2014 ACME Logistics (CLEAN)",
+  "body": "All docs for PO-4474. FOB Ningbo, HS 8473.30. Clean set.",
+  "customer": "Acme Logistics",
+  "received_at": "2026-06-18T08:30:00"
+}

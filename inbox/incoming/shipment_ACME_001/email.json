@@ -1,9 +1,0 @@
-{
-  "message_id": "su-acme-2026-001",
-  "from": "exports@acme-supplier.com",
-  "to": "cg@gocomet.com",
-  "subject": "Shipment docs \u2014 PO 4471 \u2014 ACME Logistics (CLEAN)",
-  "body": "Dear GoComet CG team,\n\nPlease find attached the Bill of Lading, Commercial Invoice, and Packing List for shipment PO-4471. All documents have been prepared per the agreed terms (FOB Shanghai, HS 8471.30).\n\nKindly confirm clearance at your earliest convenience.\n\nBest regards,\nTech Export Co Ltd",
-  "customer": "Acme Logistics",
-  "received_at": "2026-06-13T09:00:00"
-}

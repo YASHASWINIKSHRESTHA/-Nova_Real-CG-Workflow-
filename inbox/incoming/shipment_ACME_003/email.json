@@ -1,0 +1,9 @@
+{
+  "message_id": "su-acme-2026-003",
+  "from": "exports@acme-supplier.com",
+  "to": "cg@gocomet.com",
+  "subject": "Shipment docs \u2014 PO 4473 \u2014 ACME Logistics",
+  "body": "Please find attached docs for PO-4473. FOB Shanghai, HS 8471.30.",
+  "customer": "Acme Logistics",
+  "received_at": "2026-06-18T07:15:00"
+}

@@ -1,0 +1,9 @@
+{
+  "message_id": "su-acme-2026-006",
+  "from": "accounts@acme-supplier.com",
+  "to": "cg@gocomet.com",
+  "subject": "Shipment docs \u2014 PO 4476 \u2014 ACME Logistics",
+  "body": "Docs for PO-4476 attached. Please process.",
+  "customer": "Acme Logistics",
+  "received_at": "2026-06-18T11:00:00"
+}

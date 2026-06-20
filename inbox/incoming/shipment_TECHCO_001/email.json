@@ -1,0 +1,9 @@
+{
+  "message_id": "su-techco-2026-001",
+  "from": "shipping@techco-global.com",
+  "to": "cg@gocomet.com",
+  "subject": "Shipment docs \u2014 TechCo Global \u2014 PO TC-0091",
+  "body": "Hi CG team, please find attached BOL, invoice and packing list for PO TC-0091.",
+  "customer": "TechCo Global",
+  "received_at": "2026-06-19T10:30:00"
+}
