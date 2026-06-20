@@ -97,6 +97,14 @@ html::after{{content:'';position:fixed;inset:0;
 [data-testid="stSidebarContent"]{{background:transparent!important;}}
 [data-testid="stDecoration"]{{display:none!important;}}
 
+/* ── Hide sidebar collapse arrow icon text (Material Icons ligature) ── */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"],
+button[data-testid="baseButton-header"] span,
+.eyeqlp51 span{{font-size:0!important;}}
+[data-testid="stSidebarCollapsedControl"] *,
+[data-testid="collapsedControl"] *{{color:transparent!important;font-size:0!important;}}
+
 /* ── Sidebar ── */
 section[data-testid="stSidebar"]>div:first-child{{
   background:rgba(5,10,28,0.90)!important;backdrop-filter:blur(28px)!important;
