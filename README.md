@@ -2,6 +2,10 @@
 
 ### A multi-agent pipeline where the model is never trusted without evidence, the verdict is deterministic, and only a human can hit Send.
 
+# YouTube Link
+
+[Watch the video](https://youtu.be/7jJgUHiyaEY?si=ihJ2KiCoEf6r9Pzs)
+
 > *"Nova doesn't get to be a confident liar. A wrongly auto-approved HS code is a customs hold plus a contract penalty — so the system is built so that nothing reaches the customer without evidence and a human click."*
 
 A POC-scale, runnable miniature of GoComet's **Nova** platform: a multi-agent, evidence-grounded, crash-recoverable trade-document validation pipeline with a CG-operator UI. Built for the Full-Stack AI Engineer Day-at-Work assignment.
